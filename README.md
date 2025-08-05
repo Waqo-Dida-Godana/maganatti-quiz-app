@@ -1,6 +1,6 @@
 # Maganatti Quiz App
 
-A stylish and responsive multiple-choice quiz app built with **HTML5**, **CSS3**, and **JavaScript**.
+A stylish and responsive multiple-choice quiz app built with **HTML5**, **CSS3** and **JavaScript**.
 
 ## ✨ Features
 - 🎯 Multiple-choice questions
@@ -12,7 +12,7 @@ A stylish and responsive multiple-choice quiz app built with **HTML5**, **CSS3**
 - 🎨 Modern dark UI with accent colors
 
 ## 🚀 Live Demo
-*(Add GitHub Pages link after deployment)*
+(https://github.com/Waqo-Dida-Godana/maganatti-quiz-app)
 
 ## 📷 Screenshot
 ![Quiz Screenshot](screenshot.png)

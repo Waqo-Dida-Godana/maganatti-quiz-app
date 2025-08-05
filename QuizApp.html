@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Maganatti Quiz — Enhanced</title>
+  <style>
+    :root{
+      --bg: #061124;
+      --card: #0b1724;
+      --accent: #06b6d4;
+      --muted: #94a3b8;
+      --success: #16a34a;
+      --danger: #ef4444;
+      --glass: rgba(255,255,255,0.03);
+  
+      /* new: explicit choice text color to avoid theme overrides */
+      --choice-text: #e6eef6;      /* light text on dark background */
+      --choice-idx-bg: rgba(255,255,255,0.06);
+      --choice-idx-color: #02122a; /* dark text inside index badge */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,Segoe UI,Roboto,"Helvetica Neue",Arial;
+      background: linear-gradient(180deg,#061124 0%, #071224 60%);
+      color:#e6eef6;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:1rem;
+      min-height:100vh;
+    }
+  
+    /* layout */
+    .wrap{width:100%;max-width:980px}
+    .topbar{display:flex;gap:.5rem;align-items:center;justify-content:space-between;margin-bottom:1rem}
+    .title{display:flex;gap:.8rem;align-items:baseline}
+    h1{margin:0;font-size:1.2rem}
+    .controls{display:flex;gap:.5rem;align-items:center}
+    select,input[type="number"]{padding:.45rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:transparent;color:inherit}
+  
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.04));
+      padding:1rem;border-radius:12px;border:1px solid rgba(255,255,255,0.03);
+      box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+    }
+  
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem}
+    .meta{color:var(--muted);font-size:.92rem}
+  
+    /* progress bar */
+    .progress-wrap{height:10px;background:rgba(255,255,255,0.04);border-radius:999px;overflow:hidden;margin: .4rem 0}
+    .progress{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#7dd3fc);transition:width .5s ease}
+  
+    .question{font-size:1.05rem;padding:1rem 0}
+    .choices{display:grid;gap:.6rem}
+  
+    /* base choice style */
+    .choice{
+      background:transparent;
+      border:1px solid rgba(255,255,255,0.06);
+      padding:.8rem 1rem;border-radius:8px;cursor:pointer;
+      text-align:left;transition:all .12s ease;display:flex;gap:.6rem;align-items:center;
+      /* ensure readable text even if other CSS tries to change color */
+      color: var(--choice-text) !important;
+      fill: currentColor;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+    .choice * { color: inherit !important; } /* enforce for nested elements */
+  
+    .choice:hover{transform:translateY(-2px)}
+    .choice .idx{
+      width:28px;height:28px;border-radius:6px;
+      background:var(--choice-idx-bg);
+      display:inline-grid;place-items:center;font-weight:700;
+      color: var(--choice-idx-color);
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+  
+    .choice.selected{outline:2px solid var(--accent);background:rgba(6,182,212,0.04)}
+    .choice.correct{border-color:rgba(22,163,74,0.9);background:rgba(16,185,129,0.06)}
+    .choice.wrong{border-color:rgba(239,68,68,0.9);opacity:.95;background:rgba(239,68,68,0.04)}
+  
+    /* Overrides for high-contrast backgrounds (e.g., if .choice gets a dark text background) */
+    .choice.selected .idx,
+    .choice.correct .idx,
+    .choice.wrong .idx { color: var(--choice-idx-color) !important; }
+  
+    /* In case a theme adds .bg-* classes that set dark text color, force appropriate contrast */
+    .choice,
+    .choice .idx,
+    .choice > div,
+    .choice > span {
+      color: var(--choice-text) !important;
+    }
+  
+    /* focus visibility for keyboard users */
+    .choice:focus {
+      outline: 3px solid rgba(6,182,212,0.18);
+      outline-offset: 3px;
+    }
+    .choice:focus-visible {
+      outline: 3px solid rgba(6,182,212,0.28);
+    }
+  
+    .controls-row{display:flex;justify-content:space-between;align-items:center;margin-top:1rem;gap:.6rem;flex-wrap:wrap}
+    button{
+      background:var(--accent);border:none;color:#02122a;padding:.6rem .9rem;border-radius:8px;cursor:pointer;
+      font-weight:700;
+    }
+    .ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);font-weight:600}
+  
+    .result{padding:.8rem;border-radius:8px;margin-top:1rem;background:rgba(0,0,0,0.04);color:var(--muted)}
+    .score{font-weight:800;color:var(--accent)}
+  
+    /* admin modal */
+    .admin-toggle{background:transparent;border:1px dashed rgba(255,255,255,0.06);padding:.4rem .6rem;border-radius:8px;color:var(--muted)}
+    .admin-panel{margin-top:1rem;padding:1rem;border-radius:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.03)}
+    .qa-row{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem}
+    textarea{width:100%;min-height:64px;padding:.5rem;border:1px solid rgba(255,255,255,0.04);border-radius:8px;background:transparent;color:inherit}
+    input[type="text"]{padding:.4rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+  
+    /* responsive */
+    @media (max-width:720px){
+      .topbar{flex-direction:column;align-items:stretch}
+      .controls{justify-content:space-between}
+    }
+  
+    /* small helper styles */
+    .tiny{font-size:.86rem;color:var(--muted)}
+    .flex{display:flex;gap:.5rem;align-items:center}
+    .muted{color:var(--muted)}
+  </style>
+  
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">
+        <h1>Maganatti Quiz</h1>
+        <div class="tiny muted">Practice — Enhanced</div>
+      </div>
+
+      <div class="controls">
+        <label class="tiny muted">Category
+          <select id="categoryFilter">
+            <option value="all">All</option>
+          </select>
+        </label>
+
+        <label class="tiny muted">Difficulty
+          <select id="difficultyFilter">
+            <option value="all">All</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </label>
+
+        <label class="tiny muted">Time/Q (sec)
+          <input id="timePerQ" type="number" min="5" max="300" value="20" />
+        </label>
+
+        <button id="startBtn">Start / (Shuffle)</button>
+        <button id="adminBtn" class="admin-toggle">Admin</button>
+      </div>
+    </div>
+
+    <main class="card" id="app" aria-live="polite">
+      <header>
+        <div>
+          <div class="meta" id="qmeta">Question 0 / 0</div>
+          <div class="question" id="question">Choose a category and press Start</div>
+        </div>
+        <div class="meta">
+          Score: <span id="score">0</span> · High: <span id="highscore">0</span>
+          <div class="tiny muted">Timer: <span id="timer">—</span></div>
+        </div>
+      </header>
+
+      <div class="progress-wrap" aria-hidden="true">
+        <div class="progress" id="progressBar" style="width:0;"></div>
+      </div>
+
+      <div class="choices" id="choices" role="list"></div>
+
+      <div class="controls-row">
+        <div class="flex">
+          <button id="prevBtn" class="ghost">◀ Prev</button>
+          <button id="submitBtn" class="ghost">Submit</button>
+          <button id="nextBtn">Next ▶</button>
+        </div>
+
+        <div class="flex">
+          <button id="finishBtn" class="ghost">Finish</button>
+          <button id="restartBtn" class="ghost">Restart</button>
+        </div>
+      </div>
+
+      <div class="result" id="result" style="display:none"></div>
+    </main>
+
+    <!-- Admin panel (simple) -->
+    <section class="admin-panel" id="adminPanel" style="display:none">
+      <h3 class="tiny">Admin — Add / Edit Questions (saved locally)</h3>
+      <div>
+        <div class="qa-row">
+          <input id="qCategory" type="text" placeholder="Category (e.g., HTML, JS)" />
+          <select id="qDifficulty"><option value="easy">easy</option><option value="medium">medium</option><option value="hard">hard</option></select>
+        </div>
+        <div style="margin-bottom:.5rem">
+          <input id="qText" type="text" placeholder="Question text" />
+        </div>
+        <div id="adminChoicesHolder">
+          <div class="qa-row admin-choice">
+            <input class="choiceText" type="text" placeholder="Choice 1" />
+            <label class="tiny muted">Correct <input type="radio" name="correct" value="0" checked /></label>
+          </div>
+          <div class="qa-row admin-choice">
+            <input class="choiceText" type="text" placeholder="Choice 2" />
+            <label class="tiny muted">Correct <input type="radio" name="correct" value="1" /></label>
+          </div>
+        </div>
+        <div style="margin:.5rem 0">
+          <button id="addChoiceBtn" class="ghost">+ Choice</button>
+          <button id="saveQuestionBtn">Save Question</button>
+          <button id="clearBankBtn" class="ghost">Clear All Questions</button>
+        </div>
+
+        <div style="margin-top:.8rem">
+          <h4 class="tiny muted">Question bank</h4>
+          <div id="questionBank" class="tiny muted"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    /*************************
+     * Maganatti Quiz — Enhanced (Vanilla)
+     * Features:
+     *  - shuffle questions & choices
+     *  - timed questions
+     *  - category & difficulty filters
+     *  - progress bar w/ animation
+     *  - highscore persistence (localStorage)
+     *  - admin CRUD for questions (localStorage)
+     *  - keyboard accessibility
+     *************************/
+
+    /* ---------- Utilities ---------- */
+    function $(sel){return document.querySelector(sel)}
+    function $all(sel){return Array.from(document.querySelectorAll(sel))}
+    function randomShuffle(arr){
+      // Fisher-Yates
+      const a = arr.slice();
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+      }
+      return a;
+    }
+
+    /* ---------- Initial question bank (fallback) ---------- */
+    const DEFAULT_QUESTIONS = [
+      { q: "What does HTML stand for?", choices: ["Hyper Text Markup Language","HighText Machine Language","Hyperlinking Text Markup","Hyperlink Machine Language"], answer: 0, category: "HTML", difficulty: "easy" },
+      { q: "Which tag creates a numbered list?", choices: ["<ul>","<li>","<ol>","<dl>"], answer: 2, category: "HTML", difficulty: "easy" },
+      { q: "Which CSS property changes text color?", choices: ["font-color","color","text-color","fg-color"], answer: 1, category: "CSS", difficulty: "easy" },
+      { q: "Which JavaScript method logs to console?", choices: ["console.log()","print()","echo()","log()"], answer: 0, category: "JS", difficulty: "easy" },
+      { q: "Which operator compares value and type in JS?", choices: ["==","===","!=","!=="], answer: 1, category: "JS", difficulty: "medium" },
+      { q: "What does HTTP stand for?", choices: ["HyperText Transfer Protocol","HyperText Transmission Protocol","High Transfer Text Protocol","Hyper Transfer Text Program"], answer: 0, category: "Networking", difficulty: "medium" }
+    ];
+
+    /* ---------- Local storage keys ---------- */
+    const LS_KEYS = {
+      QUESTIONS: 'maganatti_questions_v1',
+      HIGHSCORE: 'maganatti_highscore_v1'
+    };
+
+    /* ---------- App state ---------- */
+    let bank = loadQuestionBank(); // full bank (persisted)
+    let workingSet = [];           // filtered & shuffled questions for a run
+    let currentIndex = 0;
+    let score = 0;
+    let userAnswers = [];
+    let answeredCorrect = [];
+    let timerInterval = null;
+    let timeLeft = 0;
+    let timePerQuestion = Number($('#timePerQ').value) || 20;
+    let quizActive = false;
+    let choicesMapping = []; // track mapping after shuffling choices for each question
+
+    /* ---------- Elements ---------- */
+    const categoryFilter = $('#categoryFilter');
+    const difficultyFilter = $('#difficultyFilter');
+    const startBtn = $('#startBtn');
+    const adminBtn = $('#adminBtn');
+    const adminPanel = $('#adminPanel');
+    const qmeta = $('#qmeta');
+    const questionEl = $('#question');
+    const choicesEl = $('#choices');
+    const scoreEl = $('#score');
+    const highscoreEl = $('#highscore');
+    const submitBtn = $('#submitBtn');
+    const nextBtn = $('#nextBtn');
+    const prevBtn = $('#prevBtn');
+    const finishBtn = $('#finishBtn');
+    const restartBtn = $('#restartBtn');
+    const timerEl = $('#timer');
+    const progressBar = $('#progressBar');
+    const timePerQInput = $('#timePerQ');
+    const resultEl = $('#result');
+
+    /* ---------- Admin elements ---------- */
+    const addChoiceBtn = $('#addChoiceBtn');
+    const saveQuestionBtn = $('#saveQuestionBtn');
+    const clearBankBtn = $('#clearBankBtn');
+    const questionBankEl = $('#questionBank');
+    const qCategory = $('#qCategory');
+    const qText = $('#qText');
+    const qDifficulty = $('#qDifficulty');
+    const adminChoicesHolder = $('#adminChoicesHolder');
+
+    /* ---------- Initialization ---------- */
+    function loadQuestionBank(){
+      try {
+        const raw = localStorage.getItem(LS_KEYS.QUESTIONS);
+        if(!raw) {
+          localStorage.setItem(LS_KEYS.QUESTIONS, JSON.stringify(DEFAULT_QUESTIONS));
+          return DEFAULT_QUESTIONS.slice();
+        }
+        const parsed = JSON.parse(raw);
+        if(!Array.isArray(parsed) || parsed.length===0){
+          localStorage.setItem(LS_KEYS.QUESTIONS, JSON.stringify(DEFAULT_QUESTIONS));
+          return DEFAULT_QUESTIONS.slice();
+        }
+        return parsed;
+      } catch(e){
+        console.error("Failed to load question bank, falling back:", e);
+        return DEFAULT_QUESTIONS.slice();
+      }
+    }
+
+    function saveQuestionBank(){
+      localStorage.setItem(LS_KEYS.QUESTIONS, JSON.stringify(bank));
+      refreshAdminBankList();
+      populateFilters();
+    }
+
+    function loadHighscore(){
+      return Number(localStorage.getItem(LS_KEYS.HIGHSCORE) || 0);
+    }
+
+    function saveHighscore(value){
+      localStorage.setItem(LS_KEYS.HIGHSCORE, String(value));
+      highscoreEl.textContent = value;
+    }
+
+    // populate category filter dropdown
+    function populateFilters(){
+      const cats = Array.from(new Set(bank.map(q=>q.category || 'Uncategorized')));
+      categoryFilter.innerHTML = '<option value="all">All</option>' + cats.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    }
+
+    // admin listing
+    function refreshAdminBankList(){
+      if(!questionBankEl) return;
+      if(bank.length===0){ questionBankEl.innerHTML = '<div class="tiny muted">No questions</div>'; return; }
+      questionBankEl.innerHTML = bank.map((q,i)=> {
+        return `<div style="display:flex;justify-content:space-between;gap:.5rem;margin-bottom:.25rem">
+          <div style="flex:1"><strong>${escapeHtml(q.category||'Uncategorized')}</strong> [${q.difficulty}] — ${escapeHtml(q.q)}</div>
+          <div style="flex:0 0 auto">
+            <button data-edit="${i}" class="ghost tiny">Edit</button>
+            <button data-del="${i}" class="ghost tiny">Del</button>
+          </div>
+        </div>`;
+      }).join('');
+      // wire edit/delete
+      $all('[data-edit]').forEach(btn=>btn.addEventListener('click', e=>{
+        const i = Number(btn.getAttribute('data-edit'));
+        openEditQuestion(i);
+      }));
+      $all('[data-del]').forEach(btn=>btn.addEventListener('click', e=>{
+        const i = Number(btn.getAttribute('data-del'));
+        if(confirm('Delete question?')) { bank.splice(i,1); saveQuestionBank(); }
+      }));
+    }
+
+    // safe text escape for innerHTML injection
+    function escapeHtml(s){ return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+
+    populateFilters();
+    refreshAdminBankList();
+    highscoreEl.textContent = loadHighscore();
+
+    /* ---------- Quiz lifecycle ---------- */
+    function startQuiz(){
+      // read filters
+      const cat = categoryFilter.value;
+      const diff = difficultyFilter.value;
+      timePerQuestion = Number(timePerQInput.value) || 20;
+
+      // filter bank
+      workingSet = bank.filter(q=>{
+        return (cat==='all' || q.category===cat) && (diff==='all' || q.difficulty===diff);
+      });
+
+      if(workingSet.length===0){
+        alert('No questions available for selected filters.');
+        return;
+      }
+
+      // shuffle questions
+      workingSet = randomShuffle(workingSet);
+
+      // reset state
+      currentIndex = 0;
+      score = 0;
+      userAnswers = Array(workingSet.length).fill(null);
+      answeredCorrect = Array(workingSet.length).fill(false);
+      choicesMapping = [];
+
+      quizActive = true;
+      $('#score').textContent = score;
+      resultEl.style.display = 'none';
+
+      renderQuestion();
+      startTimerForCurrent();
+    }
+
+    function renderQuestion(){
+      const qObj = workingSet[currentIndex];
+      qmeta.textContent = `Question ${currentIndex+1} / ${workingSet.length}`;
+      questionEl.textContent = qObj.q;
+
+      // shuffle choices and keep mapping so we can determine correct index after shuffled
+      const choiceIndices = randomShuffle(qObj.choices.map((_, idx)=>idx));
+      choicesMapping[currentIndex] = choiceIndices; // e.g. [2,0,1,3] means displayed 0 -> original 2
+      choicesEl.innerHTML = '';
+
+      choiceIndices.forEach((origIdx, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'choice';
+        btn.setAttribute('role','listitem');
+        btn.dataset.index = i;
+        btn.innerHTML = `<div class="idx">${'ABCD'[i]||i+1}</div><div style="flex:1">${escapeHtml(qObj.choices[origIdx])}</div>`;
+        btn.addEventListener('click', () => selectChoice(i));
+        choicesEl.appendChild(btn);
+      });
+
+      // restore previous selection if any
+      const prev = userAnswers[currentIndex];
+      if(prev !== null){
+        const btn = choicesEl.querySelector(`[data-index="${prev}"]`);
+        if(btn) btn.classList.add('selected');
+      }
+
+      // update buttons and progress
+      prevBtn.disabled = currentIndex === 0;
+      nextBtn.disabled = currentIndex === workingSet.length - 1;
+      updateProgress();
+
+      // show result area only if previously answered & show feedback
+      if(userAnswers[currentIndex] !== null){
+        showAnswerFeedback(currentIndex);
+      } else {
+        resultEl.style.display = 'none';
+      }
+    }
+
+    function selectChoice(displayIndex){
+      // mark selection visually
+      $all('.choice').forEach(c => c.classList.remove('selected'));
+      const btn = choicesEl.querySelector(`[data-index="${displayIndex}"]`);
+      if(btn) btn.classList.add('selected');
+      userAnswers[currentIndex] = displayIndex;
+      // allow keyboard Enter to submit
+    }
+
+    function submitAnswer(){
+      if(!quizActive) return;
+      const selected = userAnswers[currentIndex];
+      if(selected === null){
+        alert('Please choose an answer first (or press a number key).');
+        return;
+      }
+      const qObj = workingSet[currentIndex];
+      const origIndexSelected = choicesMapping[currentIndex][selected];
+      const correctOrig = qObj.answer;
+      // mark UI with correct/wrong
+      $all('.choice').forEach(c=>{
+        c.classList.remove('correct','wrong','selected');
+        const di = Number(c.dataset.index);
+        const orig = choicesMapping[currentIndex][di];
+        if(orig === correctOrig) c.classList.add('correct');
+        if(di === selected && orig !== correctOrig) c.classList.add('wrong');
+      });
+
+      // scoring: only count once per question even if re-submitted
+      if(origIndexSelected === correctOrig && !answeredCorrect[currentIndex]){
+        score++;
+        answeredCorrect[currentIndex] = true;
+      } else if(origIndexSelected !== correctOrig && answeredCorrect[currentIndex]){
+        // user changed from correct to wrong
+        score--;
+        answeredCorrect[currentIndex] = false;
+      }
+
+      $('#score').textContent = score;
+      showAnswerFeedback(currentIndex);
+      // update highscore if needed on finish only
+      // stop timer for this question (but let it continue if you want)
+      stopTimer();
+    }
+
+    function showAnswerFeedback(index){
+      resultEl.style.display = 'block';
+      const qObj = workingSet[index];
+      const selected = userAnswers[index];
+      const origSelected = selected === null ? null : choicesMapping[index][selected];
+      if(selected !== null && origSelected === qObj.answer){
+        resultEl.textContent = 'Correct! ✅';
+      } else if(selected !== null){
+        resultEl.innerHTML = `Wrong — correct: <strong>${escapeHtml(qObj.choices[qObj.answer])}</strong>`;
+      } else {
+        resultEl.textContent = '';
+      }
+    }
+
+    function nextQuestion(){
+      if(!quizActive) return;
+      if(currentIndex < workingSet.length - 1) {
+        currentIndex++;
+        renderQuestion();
+        startTimerForCurrent();
+      } else {
+        finishQuiz();
+      }
+    }
+
+    function prevQuestion(){
+      if(!quizActive) return;
+      if(currentIndex > 0){
+        currentIndex--;
+        renderQuestion();
+        startTimerForCurrent();
+      }
+    }
+
+    function finishQuiz(){
+      stopTimer();
+      quizActive = false;
+      const total = workingSet.length;
+      const percent = Math.round((score/total)*100);
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `<strong>Finished!</strong> You scored <span class="score">${score}</span> / ${total} (${percent}%).<br/>
+        <div style="margin-top:.5rem"><button id="saveScoreBtn">Save Score</button> <button id="closeSummary">Close</button></div>`;
+      document.getElementById('saveScoreBtn').addEventListener('click', ()=>{
+        const prevHigh = loadHighscore();
+        if(score > prevHigh){
+          saveHighscore(score);
+          alert('New high score!');
+        } else {
+          alert('Score not higher than current high score.');
+        }
+      });
+      document.getElementById('closeSummary').addEventListener('click', ()=> resultEl.style.display='none');
+    }
+
+    function restartQuiz(){
+      stopTimer();
+      workingSet = [];
+      currentIndex = 0;
+      score = 0;
+      userAnswers = [];
+      answeredCorrect = [];
+      quizActive = false;
+      $('#question').textContent = 'Choose a category and press Start';
+      $('#qmeta').textContent = 'Question 0 / 0';
+      $('#score').textContent = '0';
+      $('#timer').textContent = '—';
+      progressBar.style.width = '0%';
+      resultEl.style.display = 'none';
+      choicesEl.innerHTML = '';
+    }
+
+    /* ---------- Timer ---------- */
+    function startTimerForCurrent(){
+      stopTimer();
+      timeLeft = timePerQuestion;
+      timerEl.textContent = `${timeLeft}s`;
+      progressBar.style.transition = 'width linear';
+      updateProgressBarDuringTimer();
+      timerInterval = setInterval(()=>{
+        timeLeft--;
+        timerEl.textContent = `${timeLeft}s`;
+        updateProgressBarDuringTimer();
+        if(timeLeft <= 0){
+          // auto submit (if answered) or mark as wrong and move on
+          clearInterval(timerInterval);
+          timerInterval = null;
+          autoHandleTimeout();
+        }
+      }, 1000);
+    }
+
+    function updateProgressBarDuringTimer(){
+      if(!workingSet.length) return;
+      const elapsed = (timePerQuestion - timeLeft);
+      const pctTime = Math.max(0, Math.min(100, (elapsed / timePerQuestion) * 100));
+      // time portion for progress is small; overall progress bar reflects question progress separately
+      // We'll visually animate the main progress (question progress)
+      updateProgress();
+    }
+
+    function stopTimer(){
+      if(timerInterval){
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      timerEl.textContent = '—';
+    }
+
+    function autoHandleTimeout(){
+      // If user selected an answer before timeout, submit it; else mark as unanswered (counts as wrong) and move next
+      if(userAnswers[currentIndex] !== null){
+        submitAnswer();
+        // small delay before moving on
+        setTimeout(()=> {
+          if(currentIndex < workingSet.length - 1) { currentIndex++; renderQuestion(); startTimerForCurrent(); }
+          else finishQuiz();
+        }, 800);
+      } else {
+        // mark as wrong (no score change), reveal correct answer, then move on
+        $all('.choice').forEach(c=>{
+          const di = Number(c.dataset.index);
+          const orig = choicesMapping[currentIndex][di];
+          if(orig === workingSet[currentIndex].answer) c.classList.add('correct');
+        });
+        resultEl.style.display = 'block';
+        resultEl.textContent = 'Time up — moving to next question.';
+        setTimeout(()=> {
+          if(currentIndex < workingSet.length - 1) { currentIndex++; renderQuestion(); startTimerForCurrent(); }
+          else finishQuiz();
+        }, 1200);
+      }
+    }
+
+    /* ---------- Progress UI ---------- */
+    function updateProgress(){
+      if(!workingSet.length) return;
+      const pct = Math.round(((currentIndex) / workingSet.length) * 100);
+      progressBar.style.transition = 'width .5s ease';
+      progressBar.style.width = `${pct}%`;
+    }
+
+    /* ---------- Keyboard accessibility ---------- */
+    window.addEventListener('keydown', (e) => {
+      if(!quizActive) return;
+      // number keys / letters for selecting (1/2/3 or a/b/c/d)
+      if(/^[1-9]$/.test(e.key)){
+        const num = Number(e.key)-1;
+        const btn = choicesEl.querySelector(`[data-index="${num}"]`);
+        if(btn){ selectChoice(num); btn.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+      }
+      // letter keys a-d
+      if(/^[a-d]$/i.test(e.key)){
+        const idx = e.key.toLowerCase().charCodeAt(0) - 97;
+        const btn = choicesEl.querySelector(`[data-index="${idx}"]`);
+        if(btn){ selectChoice(idx); btn.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+      }
+      // Enter to submit
+      if(e.key === 'Enter') submitAnswer();
+      // arrow nav
+      if(e.key === 'ArrowRight') nextQuestion();
+      if(e.key === 'ArrowLeft') prevQuestion();
+    });
+
+    /* ---------- Admin logic ---------- */
+    adminBtn.addEventListener('click', ()=>{
+      adminPanel.style.display = adminPanel.style.display === 'none' ? 'block' : 'none';
+    });
+
+    addChoiceBtn.addEventListener('click', ()=>{
+      const count = adminChoicesHolder.querySelectorAll('.admin-choice').length;
+      const div = document.createElement('div');
+      div.className = 'qa-row admin-choice';
+      div.innerHTML = `<input class="choiceText" type="text" placeholder="Choice ${count+1}" />
+        <label class="tiny muted">Correct <input type="radio" name="correct" value="${count}" /></label>`;
+      adminChoicesHolder.appendChild(div);
+    });
+
+    saveQuestionBtn.addEventListener('click', ()=>{
+      // collect admin inputs to create a question
+      const category = qCategory.value.trim() || 'Uncategorized';
+      const difficulty = qDifficulty.value || 'easy';
+      const qtext = qText.value.trim();
+      if(!qtext){ alert('Enter question text'); return; }
+      const choiceEls = adminChoicesHolder.querySelectorAll('.choiceText');
+      if(choiceEls.length < 2){ alert('Add at least 2 choices'); return; }
+      const choices = Array.from(choiceEls).map(el => el.value.trim() || '(empty)');
+      const correctRadio = adminChoicesHolder.querySelector('input[type="radio"][name="correct"]:checked');
+      const correctIdx = correctRadio ? Number(correctRadio.value) : 0;
+      const newQ = { q: qtext, choices, answer: correctIdx, category, difficulty };
+      bank.push(newQ);
+      saveQuestionBank();
+      // reset admin form
+      qCategory.value=''; qText.value=''; qDifficulty.value='easy';
+      // remove extra choices back to 2
+      while(adminChoicesHolder.querySelectorAll('.admin-choice').length > 2){
+        adminChoicesHolder.removeChild(adminChoicesHolder.lastChild);
+      }
+      adminChoicesHolder.querySelectorAll('.choiceText').forEach((el,i)=>el.value='');
+      alert('Question saved locally.');
+    });
+
+    clearBankBtn.addEventListener('click', ()=>{
+      if(!confirm('Clear all saved questions and restore defaults?')) return;
+      bank = DEFAULT_QUESTIONS.slice();
+      saveQuestionBank();
+      alert('Question bank reset.');
+    });
+
+    function openEditQuestion(i){
+      const q = bank[i];
+      // prefill admin UI
+      qCategory.value = q.category || '';
+      qText.value = q.q || '';
+      qDifficulty.value = q.difficulty || 'easy';
+      // rebuild choices
+      adminChoicesHolder.innerHTML = '';
+      q.choices.forEach((c, idx) => {
+        const div = document.createElement('div');
+        div.className = 'qa-row admin-choice';
+        div.innerHTML = `<input class="choiceText" type="text" value="${escapeHtml(c)}" />
+          <label class="tiny muted">Correct <input type="radio" name="correct" value="${idx}" ${idx===q.answer?'checked':''} /></label>`;
+        adminChoicesHolder.appendChild(div);
+      });
+      // change save button behavior to update instead of push
+      saveQuestionBtn.textContent = 'Update Question';
+      saveQuestionBtn.onclick = function updateAndRestore(){
+        const category = qCategory.value.trim() || 'Uncategorized';
+        const difficulty = qDifficulty.value || 'easy';
+        const qtext = qText.value.trim();
+        if(!qtext){ alert('Enter question text'); return; }
+        const choiceEls = adminChoicesHolder.querySelectorAll('.choiceText');
+        if(choiceEls.length < 2){ alert('Add at least 2 choices'); return; }
+        const choices = Array.from(choiceEls).map(el => el.value.trim() || '(empty)');
+        const correctRadio = adminChoicesHolder.querySelector('input[type="radio"][name="correct"]:checked');
+        const correctIdx = correctRadio ? Number(correctRadio.value) : 0;
+        bank[i] = { q: qtext, choices, answer: correctIdx, category, difficulty };
+        saveQuestionBank();
+        // restore button
+        saveQuestionBtn.textContent = 'Save Question';
+        saveQuestionBtn.onclick = saveQuestionDefault;
+        // reset form
+        qCategory.value=''; qText.value=''; qDifficulty.value='easy';
+        while(adminChoicesHolder.querySelectorAll('.admin-choice').length > 2) adminChoicesHolder.removeChild(adminChoicesHolder.lastChild);
+        adminChoicesHolder.querySelectorAll('.choiceText').forEach((el)=>el.value='');
+        alert('Question updated.');
+      };
+    }
+
+    // default save handler
+    function saveQuestionDefault(){ /* replaced at runtime */ }
+    saveQuestionBtn.onclick = saveQuestionDefault;
+
+    // link up control buttons
+    startBtn.addEventListener('click', startQuiz);
+    submitBtn.addEventListener('click', submitAnswer);
+    nextBtn.addEventListener('click', nextQuestion);
+    prevBtn.addEventListener('click', prevQuestion);
+    finishBtn.addEventListener('click', finishQuiz);
+    restartBtn.addEventListener('click', restartQuiz);
+    timePerQInput.addEventListener('change', ()=>{ timePerQuestion = Number(timePerQInput.value) || 20; });
+
+    // wire dynamic selection (clicking a choice)
+    choicesEl.addEventListener('click', (ev)=>{
+      const btn = ev.target.closest('.choice');
+      if(btn) selectChoice(Number(btn.dataset.index));
+    });
+
+    // saveQuestionDefault implementation (need to assign after declaration)
+    saveQuestionDefault = function(){
+      const category = qCategory.value.trim() || 'Uncategorized';
+      const difficulty = qDifficulty.value || 'easy';
+      const qtext = qText.value.trim();
+      if(!qtext){ alert('Enter question text'); return; }
+      const choiceEls = adminChoicesHolder.querySelectorAll('.choiceText');
+      if(choiceEls.length < 2){ alert('Add at least 2 choices'); return; }
+      const choices = Array.from(choiceEls).map(el => el.value.trim() || '(empty)');
+      const correctRadio = adminChoicesHolder.querySelector('input[type="radio"][name="correct"]:checked');
+      const correctIdx = correctRadio ? Number(correctRadio.value) : 0;
+      const newQ = { q: qtext, choices, answer: correctIdx, category, difficulty };
+      bank.push(newQ);
+      saveQuestionBank();
+      // reset admin form
+      qCategory.value=''; qText.value=''; qDifficulty.value='easy';
+      while(adminChoicesHolder.querySelectorAll('.admin-choice').length > 2) adminChoicesHolder.removeChild(adminChoicesHolder.lastChild);
+      adminChoicesHolder.querySelectorAll('.choiceText').forEach((el)=>el.value='');
+      alert('Question saved locally.');
+    };
+
+    // update filters when bank changes
+    const observer = new MutationObserver(()=>populateFilters());
+    observer.observe(questionBankEl, { childList: true, subtree: true });
+
+    // ensure admin area starts with two choice inputs wired for radio naming
+    function ensureAdminRadios(){
+      const radios = adminChoicesHolder.querySelectorAll('input[type="radio"][name="correct"]');
+      radios.forEach((r, idx)=> r.value = idx);
+    }
+    // rebalance radio values when choices change
+    adminChoicesHolder.addEventListener('DOMNodeInserted', ensureAdminRadios);
+    adminChoicesHolder.addEventListener('DOMNodeRemoved', ensureAdminRadios);
+
+    // expose small helper for debugging
+    window._maganatti = { bank, saveQuestionBank, startQuiz };
+
+    // initial population
+    populateFilters();
+    refreshAdminBankList();
+  </script>
+</body>
+</html>
